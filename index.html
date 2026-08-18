@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultimate 3D Maze Engine - 3D Camera & Grounded Char</title>
+    <style>
+        :root {
+            --primary: #00ffcc;
+            --secondary: #38bdf8;
+            --bg-dark: #090d16;
+            --panel-bg: rgba(5, 10, 20, 0.98);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--primary);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 95vw;
+            max-width: 720px;
+            height: 432px;
+            border: 4px solid var(--primary);
+            background-color: #000;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.25);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #minimap-container {
+            position: absolute;
+            top: 10px; left: 10px;
+            width: 110px; height: 110px;
+            border: 2px solid #fff;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 4px;
+            z-index: 5;
+        }
+
+        #menu-btn {
+            position: absolute;
+            top: 10px; right: 10px;
+            width: 40px; height: 40px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            font-size: 24px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 6px; 
+            z-index: 1000000;
+        }
+        #menu-btn:active { background: var(--primary); color: #000; }
+
+        /* Full Map Overlay */
+        #fullMapOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #largeMapCanvas {
+            border: 2px solid var(--primary);
+            cursor: move;
+            touch-action: none;
+            background: #000;
+            border-radius: 6px;
+        }
+        .map-header {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            color: #fff;
+            align-items: center;
+            font-size: 14px;
+        }
+        .map-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #mapToggleBtn {
+            background: rgba(0, 255, 204, 0.2);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+        }
+        #mapToggleBtn:active {
+            background: var(--primary);
+            color: #000;
+        }
+
+        #settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--panel-bg);
+            border: 2px solid var(--primary);
+            padding: 16px;
+            border-radius: 10px;
+            display: none;
+            z-index: 999999;
+            width: 90vw;
+            max-width: 380px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9), 0 0 20px rgba(0, 255, 204, 0.3);
+            font-size: 12px;
+            max-height: 80vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #settings-panel.open { display: block; }
+        
+        .sens-panel-container {
+            display: grid;
+            grid-template-columns: 1fr 40px;
+            gap: 6px;
+            align-items: center;
+        }
+        .sliders-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .setting-row {
+            background: rgba(0,255,204,0.03);
+            border: 1px solid rgba(0,255,204,0.2);
+            padding: 6px;
+            border-radius: 4px;
+        }
+        .setting-row label { display: flex; justify-content: space-between; margin-bottom: 2px; }
+        .setting-row input[type=range] {
+            width: 100%;
+            background: #111;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            font-family: monospace;
+            padding: 2px;
+            border-radius: 4px;
+        }
+
+        .links-group {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            height: 100%;
+            padding-left: 4px;
+            border-left: 1px dashed rgba(0,255,204,0.3);
+        }
+        .link-toggle-btn {
+            background: #111;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            font-size: 14px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .link-toggle-btn.active {
+            background: rgba(0,255,204,0.2);
+            border-color: var(--primary);
+        }
+
+        .panel-section {
+            margin-top: 12px;
+            border-top: 1px dashed rgba(0,255,204,0.3);
+            padding-top: 10px;
+        }
+
+        .action-btn {
+            background: rgba(0, 255, 204, 0.2);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        .action-btn:active {
+            background: var(--primary);
+            color: #000;
+        }
+
+        .danger-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        .danger-btn:active {
+            background: #ef4444;
+            color: #000;
+        }
+
+        #hud-info {
+            position: absolute;
+            bottom: 10px; left: 10px;
+            font-size: 13px; font-weight: bold;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none; z-index: 5;
+        }
+
+        .stick-area {
+            display: flex; width: 95vw; max-width: 720px;
+            justify-content: space-between; align-items: center; padding: 0 10px; box-sizing: border-box;
+        }
+        .joystick-container {
+            position: relative; width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid var(--primary); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            touch-action: none;
+        }
+        .joystick-knob {
+            position: absolute; width: 50px; height: 50px;
+            background: var(--primary); border-radius: 50%;
+            top: 33px; left: 33px; box-shadow: 0 0 15px var(--primary);
+            pointer-events: none;
+        }
+        .stick-label {
+            position: absolute; bottom: -22px; font-size: 12px;
+            color: var(--primary); width: 100%; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+        <canvas id="minimap-container" width="110" height="110"></canvas>
+        
+        <div id="menu-btn">+</div>
+        <div id="hud-info">Dif: <span id="diffNameDisplay">Normal</span> | ST: <span id="stageNum">1</span> | T: <span id="timer">0.0</span>s</div>
+    </div>
+
+    <div id="settings-panel">
+        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--primary); padding-bottom: 4px; font-size: 13px;">設定 & リンクコントロール</div>
+        
+        <div class="panel-section" style="margin-top:0; border-top:none; padding-top:0;">
+            <label style="display:block; margin-bottom:2px;">カメラ視点</label>
+            <select id="cameraViewSelect" style="width:100%; background:#111; color:var(--primary); border:1px solid var(--primary); padding:5px; border-radius:4px;">
+                <option value="1" selected>1: 一人称</option>
+                <option value="2">2: 三人称後方</option>
+                <option value="3">3: 上から見下ろし</option>
+            </select>
+        </div>
+
+        <div class="panel-section">
+            <div class="setting-row">
+                <label><span>2. 三人称の距離: <span id="dist3rd-v">1.3</span></span></label>
+                <input type="range" id="dist3rd-s" min="0.8" max="3.5" step="0.1" value="1.3">
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="setting-row">
+                <label><span>3. 見下ろしの広さ: <span id="viewRadius-v">7</span></span></label>
+                <input type="range" id="viewRadius-s" min="4" max="15" step="1" value="7">
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div style="font-weight: bold; margin-bottom: 6px; font-size: 12px;">感度設定</div>
+            <div class="sens-panel-container">
+                <div class="sliders-group">
+                    <div class="setting-row">
+                        <label><span>1. 移動: <span id="mv-v">100</span>%</span></label>
+                        <input type="range" id="mv-s" min="25" max="200" step="25" value="100">
+                    </div>
+                    <div class="setting-row">
+                        <label><span>2. 視点(横): <span id="rotX-v">100</span>%</span></label>
+                        <input type="range" id="rotX-s" min="25" max="200" step="25" value="100">
+                    </div>
+                    <div class="setting-row">
+                        <label><span>3. 視点(縦): <span id="rotY-v">100</span>%</span></label>
+                        <input type="range" id="rotY-s" min="25" max="200" step="25" value="100">
+                    </div>
+                </div>
+
+                <div class="links-group">
+                    <button class="link-toggle-btn" id="link-btn-0" title="1番目と2番目をリンク">✂️</button>
+                    <button class="link-toggle-btn" id="link-btn-1" title="2番目と3番目をリンク">✂️</button>
+                    <button class="link-toggle-btn" id="link-btn-bridge" title="1番目と3番目を直接リンク" style="border-style: dashed;">✂️</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <label style="display:block; margin-bottom:2px;">難易度</label>
+            <select id="diffSelect" style="width:100%; background:#111; color:var(--primary); border:1px solid var(--primary); padding:5px; border-radius:4px;">
+                <option value="easy">Easy (初期9 / 増え幅小 +2)</option>
+                <option value="normal" selected>Normal (初期11 / 標準 +4)</option>
+                <option value="hard">Hard (初期13 / 増え幅大 +6)</option>
+                <option value="extreme">Extreme (initial 15 / 超巨大化 +8)</option>
+            </select>
+        </div>
+
+        <div class="panel-section">
+            <label style="display:block; margin-bottom:4px;">ステージ移動</label>
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <button class="action-btn" id="prevStageBtn" style="width: 40px; margin-top:0;">◀</button>
+                <input type="number" id="stageInput" min="1" value="1" style="flex: 1; background:#111; color:var(--primary); border:1px solid var(--primary); padding:6px; border-radius:4px; text-align:center; font-family:monospace;">
+                <button class="action-btn" id="nextStageBtn" style="width: 40px; margin-top:0;">▶</button>
+                <button class="action-btn" id="jumpStageBtn" style="width: 50px; margin-top:0;">移動</button>
+            </div>
+            <div style="font-size: 11px; color: var(--secondary); margin-top: 4px;" id="maxStageInfo">MAX: 1</div>
+        </div>
+
+        <div class="panel-section">
+            <div style="font-size: 11px; color: #38bdf8; margin-bottom: 6px;">BEST TIME: <span id="bestTimeDisplay">--</span>s</div>
+            <button class="danger-btn" id="resetDataBtn">🗑️ この難易度のデータを削除</button>
+            <button class="danger-btn" id="resetAllDataBtn" style="margin-top: 6px;">💥 一括データ削除（Adminごと全リセット）</button>
+        </div>
+
+        <div class="panel-section">
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--secondary);">👑 管理者認証 (Fingerprint)</div>
+            <input type="text" id="fingerprintInput" placeholder="パスワードを入力..." style="width:100%; background:#111; color:var(--primary); border:1px solid var(--primary); padding:6px; border-radius:4px; font-family:monospace; margin-bottom:6px;">
+            <button class="action-btn" id="adminAuthBtn">🔑 管理者権限を有効化</button>
+        </div>
+    </div>
+
+    <div class="stick-area">
+        <div id="leftStick" class="joystick-container">
+            <div id="leftKnob" class="joystick-knob"></div>
+            <div class="stick-label">移動 (L)</div>
+        </div>
+        <div class="map-controls">
+            <button id="mapToggleBtn">🗺️ MAP</button>
+        </div>
+        <div id="rightStick" class="joystick-container">
+            <div id="rightKnob" class="joystick-knob"></div>
+            <div class="stick-label">視点 (R)</div>
+        </div>
+    </div>
+
+    <!-- Full Map Overlay -->
+    <div id="fullMapOverlay">
+        <div class="map-header">
+            <span>Zoom:</span><input type="range" id="zoomSlider" min="1" max="50" step="1" value="10">
+            <button id="closeMapBtn" class="action-btn" style="width: auto; padding: 5px 15px; margin: 0;">CLOSE</button>
+        </div>
+        <canvas id="largeMapCanvas"></canvas>
+        <div style="margin-top:10px; font-size:12px; color: var(--secondary);">ドラッグで移動・スライダーでズーム</div>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const mapCanvas = document.getElementById("minimap-container");
+    const mapCtx = mapCanvas.getContext("2d");
+
+    let mapSize = 11;
+    let map = [];
+    let player = { x: 1.5, y: 1.5, dir: 0, pitch: 0 };
+    let smoothCamX = 1.5;
+    let smoothCamY = 1.5;
+    let smoothCamHeight = 0;
+
+    let currentDifficulty = "normal";
+    let currentStage = 1;
+    let startTime = Date.now();
+    let elapsedTime = 0;
+    let isCleared = false;
+    let isAdmin = false;
+    let cameraView = 1;
+
+    let cameraDist3rd = 1.3;
+    let cameraViewRadiusTop = 7;
+
+    const ADMIN_FINGERPRINT = "ADM1N1SG00D";
+
+    let saveData = {
+        easy: { maxStage: 1, bestTimes: {} },
+        normal: { maxStage: 1, bestTimes: {} },
+        hard: { maxStage: 1, bestTimes: {} },
+        extreme: { maxStage: 1, bestTimes: {} }
+    };
+
+    function loadGameData() {
+        const saved = localStorage.getItem("ultimate_maze_save_v3");
+        if (saved) {
+            try {
+                let parsed = JSON.parse(saved);
+                if (parsed.saveData) {
+                    saveData = parsed.saveData;
+                    isAdmin = parsed.isAdmin || false;
+                }
+            } catch(e) {
+                console.error("セーブデータの読み込みに失敗しました", e);
+            }
+        }
+    }
+
+    function saveGameData() {
+        localStorage.setItem("ultimate_maze_save_v3", JSON.stringify({
+            saveData: saveData,
+            isAdmin: isAdmin
+        }));
+    }
+
+    loadGameData();
+
+    let sens = { move: 1.0, rotX: 1.0, rotY: 1.0 };
+    let links = { 0: false, 1: false, bridge: false };
+
+    let moveVec = { x: 0, y: 0 };
+    let rotVec = { x: 0, y: 0 };
+
+    const diffConfigs = {
+        easy:    { name: "Easy", start: 9,  step: 2 },
+        normal:  { name: "Normal", start: 11, step: 4 },
+        hard:    { name: "Hard", start: 13, step: 6 },
+        extreme: { name: "Extreme", start: 15, step: 8 }
+    };
+
+    document.getElementById("cameraViewSelect").onchange = (e) => {
+        cameraView = parseInt(e.target.value);
+    };
+
+    document.getElementById("dist3rd-s").oninput = (e) => {
+        cameraDist3rd = parseFloat(e.target.value);
+        document.getElementById("dist3rd-v").textContent = cameraDist3rd.toFixed(1);
+    };
+
+    document.getElementById("viewRadius-s").oninput = (e) => {
+        cameraViewRadiusTop = parseInt(e.target.value);
+        document.getElementById("viewRadius-v").textContent = cameraViewRadiusTop;
+    };
+
+    function updateStageUI() {
+        let currentDiffData = saveData[currentDifficulty];
+        let maxAllowed = isAdmin ? "∞" : currentDiffData.maxStage;
+        document.getElementById("maxStageInfo").textContent = `MAX: ${maxAllowed}`;
+        document.getElementById("stageInput").value = currentStage;
+        
+        const best = currentDiffData.bestTimes[currentStage];
+        document.getElementById("bestTimeDisplay").textContent = (best !== undefined) ? best : "--";
+    }
+
+    function applyStageChange(targetStage) {
+        let currentDiffData = saveData[currentDifficulty];
+        let limit = isAdmin ? 999999 : currentDiffData.maxStage;
+
+        if (targetStage < 1) targetStage = 1;
+        if (!isAdmin && targetStage > limit) {
+            alert(`まだ解放されていないステージです！（現在のMAX: ${limit}）`);
+            targetStage = limit;
+        }
+
+        currentStage = targetStage;
+        initGame();
+    }
+
+    document.getElementById("prevStageBtn").onclick = () => {
+        applyStageChange(currentStage - 1);
+    };
+
+    document.getElementById("nextStageBtn").onclick = () => {
+        applyStageChange(currentStage + 1);
+    };
+
+    document.getElementById("jumpStageBtn").onclick = () => {
+        let val = parseInt(document.getElementById("stageInput").value);
+        if (!isNaN(val)) {
+            applyStageChange(val);
+        }
+    };
+
+    document.getElementById("stageInput").onkeydown = (e) => {
+        if (e.key === "Enter") {
+            let val = parseInt(e.target.value);
+            if (!isNaN(val)) applyStageChange(val);
+        }
+    };
+
+    function generateMaze() {
+        let conf = diffConfigs[currentDifficulty] || diffConfigs.normal;
+        mapSize = conf.start + (currentStage - 1) * conf.step;
+
+        let m = Array.from({length: mapSize}, () => Array(mapSize).fill(1));
+        let stack = [[1, 1]];
+        m[1][1] = 0;
+
+        while (stack.length > 0) {
+            let [cx, cy] = stack[stack.length - 1];
+            let neighbors = [];
+            [[0, 2], [0, -2], [2, 0], [-2, 0]].forEach(([dx, dy]) => {
+                let nx = cx + dx, ny = cy + dy;
+                if (nx > 0 && nx < mapSize - 1 && ny > 0 && ny < mapSize - 1 && m[ny][nx] === 1) {
+                    neighbors.push([nx, ny, cx + dx / 2, cy + dy / 2]);
+                }
+            });
+
+            if (neighbors.length > 0) {
+                let [nx, ny, wx, wy] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                m[wy][wx] = 0;
+                m[ny][nx] = 0;
+                stack.push([nx, ny]);
+            } else {
+                stack.pop();
+            }
+        }
+
+        m[mapSize - 2][mapSize - 2] = 2;
+        return m;
+    }
+
+    function initGame() {
+        map = generateMaze();
+        player = { x: 1.5, y: 1.5, dir: 0, pitch: 0 };
+        smoothCamX = player.x;
+        smoothCamY = player.y;
+        smoothCamHeight = 0;
+        
+        if (map[1] && map[1][2] === 0) player.dir = 0;
+        else if (map[2] && map[2][1] === 0) player.dir = Math.PI / 2;
+        else if (map[1] && map[1][0] === 0) player.dir = Math.PI;
+        else if (map[0] && map[0][1] === 0) player.dir = -Math.PI / 2;
+
+        startTime = Date.now();
+        isCleared = false;
+        document.getElementById("stageNum").textContent = currentStage;
+        document.getElementById("diffNameDisplay").textContent = diffConfigs[currentDifficulty].name;
+        updateStageUI();
+    }
+
+    const overlay = document.getElementById("fullMapOverlay");
+    const LCanvas = document.getElementById("largeMapCanvas");
+    const LCtx = LCanvas.getContext("2d");
+    const zoomSlider = document.getElementById("zoomSlider");
+    let isMapOpen = false;
+    let mapOffsetX = 0, mapOffsetY = 0, mapScale = 10;
+
+    document.getElementById("mapToggleBtn").onclick = () => {
+        isMapOpen = true;
+        overlay.style.display = "flex";
+        mapOffsetX = (window.innerWidth * 0.9 - mapSize * mapScale) / 2;
+        mapOffsetY = (window.innerHeight * 0.7 - mapSize * mapScale) / 2;
+        drawLargeMap();
+    };
+    document.getElementById("closeMapBtn").onclick = () => { 
+        isMapOpen = false; 
+        overlay.style.display = "none"; 
+    };
+
+    function drawLargeMap() {
+        if (!isMapOpen) return;
+        LCanvas.width = window.innerWidth * 0.9;
+        LCanvas.height = window.innerHeight * 0.7;
+        LCtx.clearRect(0, 0, LCanvas.width, LCanvas.height);
+        
+        let cellSize = mapScale;
+        for (let y = 0; y < mapSize; y++) {
+            for (let x = 0; x < mapSize; x++) {
+                if (map[y][x] > 0) {
+                    LCtx.fillStyle = map[y][x] === 2 ? "#38bdf8" : "#4b5563";
+                    LCtx.fillRect(x * cellSize + mapOffsetX, y * cellSize + mapOffsetY, cellSize - 0.5, cellSize - 0.5);
+                }
+            }
+        }
+        LCtx.fillStyle = "#ef4444";
+        LCtx.fillRect(player.x * cellSize + mapOffsetX - 3, player.y * cellSize + mapOffsetY - 3, 6, 6);
+        requestAnimationFrame(drawLargeMap);
+    }
+
+    zoomSlider.oninput = (e) => { mapScale = parseFloat(e.target.value); };
+
+    let isDragging = false; let lastX, lastY;
+    LCanvas.addEventListener("mousedown", (e) => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+    window.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        mapOffsetX += e.clientX - lastX; mapOffsetY += e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+    });
+    window.addEventListener("mouseup", () => { isDragging = false; });
+
+    LCanvas.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        }
+    });
+    window.addEventListener("touchmove", (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        let t = e.touches[0];
+        mapOffsetX += t.clientX - lastX;
+        mapOffsetY += t.clientY - lastY;
+        lastX = t.clientX;
+        lastY = t.clientY;
+    });
+    window.addEventListener("touchend", () => { isDragging = false; });
+
+    const inputs = [
+        { el: document.getElementById('mv-s'), valEl: document.getElementById('mv-v'), key: 'move' },
+        { el: document.getElementById('rotX-s'), valEl: document.getElementById('rotX-v'), key: 'rotX' },
+        { el: document.getElementById('rotY-s'), valEl: document.getElementById('rotY-v'), key: 'rotY' }
+    ];
+
+    function propagateSensitivity(changedIndex, rawVal) {
+        let numVal = parseInt(rawVal) / 100;
+        let keys = ['move', 'rotX', 'rotY'];
+
+        // 自身の値を更新
+        sens[keys[changedIndex]] = numVal;
+        inputs[changedIndex].valEl.textContent = rawVal;
+        inputs[changedIndex].el.value = rawVal;
+
+        // AとCの直接リンク（bridge）がONの場合は、Bを巻き込まずにAとCだけを同期させる
+        if (links['bridge']) {
+            if (changedIndex === 0) {
+                sens[keys[2]] = numVal;
+                inputs[2].valEl.textContent = rawVal;
+                inputs[2].el.value = rawVal;
+            } else if (changedIndex === 2) {
+                sens[keys[0]] = numVal;
+                inputs[0].valEl.textContent = rawVal;
+                inputs[0].el.value = rawVal;
+            }
+            return;
+        }
+
+        // 通常の個別リンク判定
+        if (changedIndex === 0 && links[0]) {
+            sens[keys[1]] = numVal;
+            inputs[1].valEl.textContent = rawVal;
+            inputs[1].el.value = rawVal;
+        } else if (changedIndex === 1) {
+            if (links[0]) {
+                sens[keys[0]] = numVal;
+                inputs[0].valEl.textContent = rawVal;
+                inputs[0].el.value = rawVal;
+            }
+            if (links[1]) {
+                sens[keys[2]] = numVal;
+                inputs[2].valEl.textContent = rawVal;
+                inputs[2].el.value = rawVal;
+            }
+        } else if (changedIndex === 2 && links[1]) {
+            sens[keys[1]] = numVal;
+            inputs[1].valEl.textContent = rawVal;
+            inputs[1].el.value = rawVal;
+        }
+    }
+
+    inputs.forEach((item, index) => {
+        item.el.oninput = (e) => propagateSensitivity(index, e.target.value);
+    });
+
+    function setupLinkButton(btnId, linkKey, indexA, indexB) {
+        const btn = document.getElementById(btnId);
+        btn.onclick = () => {
+            links[linkKey] = !links[linkKey];
+            btn.textContent = links[linkKey] ? "🔗" : "✂️";
+            btn.classList.toggle('active', links[linkKey]);
+            if (links[linkKey]) {
+                propagateSensitivity(indexA, inputs[indexA].el.value);
+            }
+        };
+    }
+
+    setupLinkButton('link-btn-0', 0, 0, 1);
+    setupLinkButton('link-btn-1', 1, 1, 2);
+    setupLinkButton('link-btn-bridge', 'bridge', 0, 2);
+
+    function setupJoystick(containerId, knobId, isMove) {
+        const container = document.getElementById(containerId);
+        const knob = document.getElementById(knobId);
+        let activeTouchId = null;
+        let isMouseDown = false;
+        const maxDist = 35;
+
+        const updatePos = (clientX, clientY) => {
+            let rect = container.getBoundingClientRect();
+            let dx = clientX - (rect.left + rect.width / 2);
+            let dy = clientY - (rect.top + rect.height / 2);
+            let dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > maxDist) {
+                dx = (dx / dist) * maxDist;
+                dy = (dy / dist) * maxDist;
+            }
+            knob.style.transform = `translate(${dx}px, ${dy}px)`;
+
+            let nx = dx / maxDist;
+            let ny = dy / maxDist;
+            if (isMove) moveVec = { x: nx, y: ny };
+            else rotVec = { x: nx, y: ny };
+        };
+
+        const resetPos = () => {
+            activeTouchId = null;
+            isMouseDown = false;
+            knob.style.transform = `translate(0px, 0px)`;
+            if (isMove) moveVec = { x: 0, y: 0 };
+            else rotVec = { x: 0, y: 0 };
+        };
+
+        container.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            if (activeTouchId !== null) return;
+            let t = e.changedTouches[0];
+            activeTouchId = t.identifier;
+            updatePos(t.clientX, t.clientY);
+        }, { passive: false });
+
+        window.addEventListener("touchmove", (e) => {
+            if (activeTouchId === null) return;
+            for (let t of e.touches) {
+                if (t.identifier === activeTouchId) {
+                    e.preventDefault();
+                    updatePos(t.clientX, t.clientY);
+                }
+            }
+        }, { passive: false });
+
+        window.addEventListener("touchend", (e) => {
+            if (activeTouchId === null) return;
+            for (let t of e.changedTouches) {
+                if (t.identifier === activeTouchId) resetPos();
+            }
+        });
+
+        container.addEventListener("mousedown", (e) => {
+            isMouseDown = true;
+            updatePos(e.clientX, e.clientY);
+            const onMouseMove = (me) => { if (isMouseDown) updatePos(me.clientX, me.clientY); };
+            const onMouseUp = () => {
+                isMouseDown = false;
+                resetPos();
+                window.removeEventListener("mousemove", onMouseMove);
+                window.removeEventListener("mouseup", onMouseUp);
+            };
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", onMouseUp);
+        });
+    }
+
+    setupJoystick("leftStick", "leftKnob", true);
+    setupJoystick("rightStick", "rightKnob", false);
+
+    const menuBtn = document.getElementById("menu-btn");
+    const settingsPanel = document.getElementById("settings-panel");
+    menuBtn.onclick = () => {
+        let isOpen = settingsPanel.classList.toggle("open");
+        menuBtn.textContent = isOpen ? "-" : "+";
+    };
+
+    document.getElementById("diffSelect").onchange = (e) => {
+        currentDifficulty = e.target.value;
+        currentStage = 1;
+        initGame();
+    };
+
+    document.getElementById("adminAuthBtn").onclick = () => {
+        let inputVal = document.getElementById("fingerprintInput").value.trim();
+        if (inputVal === ADMIN_FINGERPRINT) {
+            isAdmin = true;
+            saveGameData();
+            updateStageUI();
+            alert("👑 管理者権限認証成功！ステージを無制限（∞）に指定できるようになりました！");
+        } else {
+            alert("❌ パスワードが一致しません。");
+        }
+    };
+
+    document.getElementById("resetDataBtn").onclick = () => {
+        if (confirm(`難易度 [${diffConfigs[currentDifficulty].name}] のセーブデータを削除しますか？`)) {
+            saveData[currentDifficulty] = { maxStage: 1, bestTimes: {} };
+            saveGameData();
+            currentStage = 1;
+            initGame();
+            alert("データを削除しました！");
+        }
+    };
+
+    document.getElementById("resetAllDataBtn").onclick = () => {
+        if (confirm("すべての難易度のセーブデータおよび管理者権限を完全にリセットしますか？")) {
+            localStorage.removeItem("ultimate_maze_save_v3");
+            saveData = {
+                easy: { maxStage: 1, bestTimes: {} },
+                normal: { maxStage: 1, bestTimes: {} },
+                hard: { maxStage: 1, bestTimes: {} },
+                extreme: { maxStage: 1, bestTimes: {} }
+            };
+            isAdmin = false;
+            saveGameData();
+            currentStage = 1;
+            initGame();
+            alert("すべてのデータを初期化しました！");
+        }
+    };
+
+    function update() {
+        if (!isCleared) {
+            elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            document.getElementById("timer").textContent = elapsedTime;
+        }
+
+        player.dir += rotVec.x * 0.07 * sens.rotX;
+        player.pitch -= rotVec.y * 3.0 * sens.rotY;
+        player.pitch = Math.max(-120, Math.min(120, player.pitch));
+
+        if (moveVec.x !== 0 || moveVec.y !== 0) {
+            let speed = 0.045 * sens.move;
+            let cos = Math.cos(player.dir);
+            let sin = Math.sin(player.dir);
+
+            let dx = (-moveVec.y * cos - moveVec.x * sin) * speed;
+            let dy = (-moveVec.y * sin + moveVec.x * cos) * speed;
+
+            let nextX = player.x + dx;
+            let nextY = player.y + dy;
+
+            if (map[Math.floor(player.y)][Math.floor(nextX)] !== 1) player.x = nextX;
+            if (map[Math.floor(nextY)][Math.floor(player.x)] !== 1) player.y = nextY;
+
+            if (map[Math.floor(player.y)][Math.floor(player.x)] === 2) {
+                if (!isCleared) {
+                    isCleared = true;
+                    
+                    let currentDiffData = saveData[currentDifficulty];
+                    let tVal = parseFloat(elapsedTime);
+                    let isNewBest = false;
+                    
+                    if (currentDiffData.bestTimes[currentStage] === undefined || tVal < currentDiffData.bestTimes[currentStage]) {
+                        currentDiffData.bestTimes[currentStage] = tVal;
+                        isNewBest = true;
+                    }
+
+                    if (currentStage >= currentDiffData.maxStage) {
+                        currentDiffData.maxStage = currentStage + 1;
+                    }
+
+                    saveGameData();
+
+                    setTimeout(() => {
+                        let msg = `Dif=${diffConfigs[currentDifficulty].name} Time=${elapsedTime}s Stage=${currentStage} クリア！`;
+                        if (isNewBest) msg += " 【新記録！】";
+                        alert(msg);
+                        
+                        currentStage++;
+                        initGame();
+                    }, 100);
+                }
+            }
+        }
+
+        smoothCamX += (player.x - smoothCamX) * 0.12;
+        smoothCamY += (player.y - smoothCamY) * 0.12;
+
+        let targetCamHeight = 0;
+        if (cameraView === 2) {
+            let checkCamX = smoothCamX - Math.cos(player.dir) * cameraDist3rd;
+            let checkCamY = smoothCamY - Math.sin(player.dir) * cameraDist3rd;
+            let cx = Math.floor(checkCamX);
+            let cy = Math.floor(checkCamY);
+            if (cy >= 0 && cy < mapSize && cx >= 0 && cx < mapSize) {
+                if (map[cy][cx] === 1) {
+                    targetCamHeight = 120;
+                }
+            }
+        }
+        smoothCamHeight += (targetCamHeight - smoothCamHeight) * 0.1;
+    }
+
+    function renderR6Character(sw, sh, fov, camX, camY) {
+        let relX = player.x - camX;
+        let relY = player.y - camY;
+        let cos = Math.cos(player.dir);
+        let sin = Math.sin(player.dir);
+        
+        let z = relX * cos + relY * sin;
+        let x_offset = -relX * sin + relY * cos;
+        
+        if (z <= 0.1) return;
+        
+        let screenX = sw / 2 + (x_offset / z) * (sw / Math.tan(fov / 2));
+        let baseHeight = sh / z;
+        
+        let charWidth = baseHeight * 0.16;
+        let charHeight = baseHeight * 0.35;
+        let screenY = sh / 2 + player.pitch + baseHeight * 0.5 - charHeight;
+
+        let headSize = charWidth * 0.5;
+        let hX = screenX - headSize/2;
+        let hY = screenY;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(hX, hY, headSize, headSize);
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.fillRect(hX + headSize*0.7, hY, headSize*0.3, headSize);
+        ctx.strokeStyle = "#111";
+        ctx.strokeRect(hX, hY, headSize, headSize);
+
+        let tWidth = charWidth * 0.7;
+        let tHeight = charHeight * 0.32;
+        let tX = screenX - tWidth/2;
+        let tY = hY + headSize;
+        ctx.fillStyle = "#f0f0f0";
+        ctx.fillRect(tX, tY, tWidth, tHeight);
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillRect(tX + tWidth*0.75, tY, tWidth*0.25, tHeight);
+        ctx.strokeStyle = "#111";
+        ctx.strokeRect(tX, tY, tWidth, tHeight);
+
+        let aWidth = charWidth * 0.2;
+        let aHeight = charHeight * 0.32;
+        ctx.fillStyle = "#e0e0e0";
+        ctx.fillRect(tX - aWidth, tY, aWidth, aHeight);
+        ctx.strokeStyle = "#111";
+        ctx.strokeRect(tX - aWidth, tY, aWidth, aHeight);
+        ctx.fillRect(tX + tWidth, tY, aWidth, aHeight);
+        ctx.strokeRect(tX + tWidth, tY, aWidth, aHeight);
+
+        let lWidth = charWidth * 0.28;
+        let lHeight = charHeight * 0.35;
+        let lY = tY + tHeight;
+        ctx.fillStyle = "#cccccc";
+        ctx.fillRect(tX, lY, lWidth, lHeight);
+        ctx.strokeStyle = "#111";
+        ctx.strokeRect(tX, lY, lWidth, lHeight);
+        ctx.fillRect(tX + tWidth - lWidth, lY, lWidth, lHeight);
+        ctx.strokeRect(tX + tWidth - lWidth, lY, lWidth, lHeight);
+    }
+
+    function render3D() {
+        let sw = canvas.width, sh = canvas.height;
+        let pitchOffset = player.pitch - smoothCamHeight;
+
+        ctx.fillStyle = "#0d1117"; ctx.fillRect(0, 0, sw, sh/2 + pitchOffset);
+        ctx.fillStyle = "#161b22"; ctx.fillRect(0, sh/2 + pitchOffset, sw, sh/2 - pitchOffset);
+
+        let fov = Math.PI / 3.8;
+
+        let camX = smoothCamX;
+        let camY = smoothCamY;
+        if (cameraView === 2) {
+            camX = smoothCamX - Math.cos(player.dir) * cameraDist3rd;
+            camY = smoothCamY - Math.sin(player.dir) * cameraDist3rd;
+        }
+
+        for (let i = 0; i < sw; i++) {
+            let rayAngle = player.dir - fov/2 + (i / sw) * fov;
+
+            let rayDirX = Math.cos(rayAngle);
+            let rayDirY = Math.sin(rayAngle);
+
+            let mapX = Math.floor(camX);
+            let mapY = Math.floor(camY);
+
+            let deltaDistX = Math.abs(1 / rayDirX);
+            let deltaDistY = Math.abs(1 / rayDirY);
+
+            let stepX, stepY;
+            let sideDistX, sideDistY;
+
+            if (rayDirX < 0) {
+                stepX = -1;
+                sideDistX = (camX - mapX) * deltaDistX;
+            } else {
+                stepX = 1;
+                sideDistX = (mapX + 1.0 - camX) * deltaDistX;
+            }
+            if (rayDirY < 0) {
+                stepY = -1;
+                sideDistY = (camY - mapY) * deltaDistY;
+            } else {
+                stepY = 1;
+                sideDistY = (mapY + 1.0 - camY) * deltaDistY;
+            }
+
+            let hit = false;
+            let side = 0;
+            let isGoal = false;
+
+            while (!hit) {
+                if (sideDistX < sideDistY) {
+                    sideDistX += deltaDistX;
+                    mapX += stepX;
+                    side = 0;
+                } else {
+                    sideDistY += deltaDistY;
+                    mapY += stepY;
+                    side = 1;
+                }
+                if (mapY < 0 || mapY >= mapSize || mapX < 0 || mapX >= mapSize) {
+                    hit = true;
+                } else if (map[mapY][mapX] > 0) {
+                    hit = true;
+                    if (map[mapY][mapX] === 2) isGoal = true;
+                }
+            }
+
+            let perpWallDist = side === 0 ? (mapX - camX + (1 - stepX) / 2) / rayDirX : (mapY - camY + (1 - stepY) / 2) / rayDirY;
+            let h = sh / Math.max(perpWallDist, 0.05);
+            let top = (sh - h) / 2 + pitchOffset;
+            let shade = Math.max(20, Math.floor(255 - perpWallDist * 10));
+            if (side === 1) shade = Math.floor(shade * 0.7);
+
+            if (isGoal) {
+                ctx.fillStyle = `rgb(0, ${Math.floor(shade * 0.8)}, ${shade})`;
+            } else {
+                ctx.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+            }
+            ctx.fillRect(i, top, 1, h);
+        }
+
+        if (cameraView === 2) {
+            renderR6Character(sw, sh, fov, camX, camY);
+        }
+    }
+
+    function renderTopDownView() {
+        let sw = canvas.width, sh = canvas.height;
+        ctx.fillStyle = "#090d16";
+        ctx.fillRect(0, 0, sw, sh);
+
+        let viewRadius = cameraViewRadiusTop;
+        let tileSize = Math.min(sw, sh) / (viewRadius * 2);
+
+        ctx.save();
+        ctx.translate(sw / 2, sh / 2);
+        ctx.rotate(-player.dir - Math.PI / 2);
+        ctx.translate(-smoothCamX * tileSize, -smoothCamY * tileSize);
+
+        let pTileX = Math.floor(smoothCamX);
+        let pTileY = Math.floor(smoothCamY);
+        let renderRange = viewRadius + 3;
+
+        for (let y = pTileY - renderRange; y <= pTileY + renderRange; y++) {
+            for (let x = pTileX - renderRange; x <= pTileX + renderRange; x++) {
+                if (y >= 0 && y < mapSize && x >= 0 && x < mapSize) {
+                    let screenX = x * tileSize;
+                    let screenY = y * tileSize;
+                    
+                    if (map[y][x] > 0) {
+                        ctx.fillStyle = map[y][x] === 2 ? "#38bdf8" : "#1f2937";
+                        ctx.fillRect(screenX, screenY, tileSize - 1, tileSize - 1);
+                        ctx.strokeStyle = "var(--primary)";
+                        ctx.strokeRect(screenX, screenY, tileSize - 1, tileSize - 1);
+                    } else {
+                        ctx.fillStyle = "#050a14";
+                        ctx.fillRect(screenX, screenY, tileSize - 1, tileSize - 1);
+                    }
+                }
+            }
+        }
+
+        ctx.save();
+        ctx.translate(player.x * tileSize, player.y * tileSize);
+        
+        let rSize = tileSize * 0.3;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#111";
+
+        ctx.fillRect(-rSize*0.3, -rSize*0.5, rSize*0.6, rSize*0.6);
+        ctx.strokeRect(-rSize*0.3, -rSize*0.5, rSize*0.6, rSize*0.6);
+
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillRect(-rSize*0.35, -rSize*0.1, rSize*0.7, rSize*0.5);
+        ctx.strokeRect(-rSize*0.35, -rSize*0.1, rSize*0.7, rSize*0.5);
+
+        ctx.fillStyle = "#d1d5db";
+        ctx.fillRect(-rSize*0.6, -rSize*0.1, rSize*0.2, rSize*0.5);
+        ctx.strokeRect(-rSize*0.6, -rSize*0.1, rSize*0.2, rSize*0.5);
+        ctx.fillRect(rSize*0.4, -rSize*0.1, rSize*0.2, rSize*0.5);
+        ctx.strokeRect(rSize*0.4, -rSize*0.1, rSize*0.2, rSize*0.5);
+
+        ctx.fillStyle = "#9ca3af";
+        ctx.fillRect(-rSize*0.3, rSize*0.4, rSize*0.25, rSize*0.4);
+        ctx.strokeRect(-rSize*0.3, rSize*0.4, rSize*0.25, rSize*0.4);
+        ctx.fillRect(rSize*0.05, rSize*0.4, rSize*0.25, rSize*0.4);
+        ctx.strokeRect(rSize*0.05, rSize*0.4, rSize*0.25, rSize*0.4);
+
+        ctx.restore();
+        ctx.restore();
+    }
+
+    function renderMinimap() {
+        mapCtx.clearRect(0, 0, 110, 110);
+        let cellSize = 110 / mapSize;
+        for (let y = 0; y < mapSize; y++) {
+            for (let x = 0; x < mapSize; x++) {
+                if (map[y][x] > 0) {
+                    mapCtx.fillStyle = map[y][x] === 2 ? "#38bdf8" : "#4b5563";
+                    mapCtx.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
+                }
+            }
+        }
+
+        mapCtx.save();
+        mapCtx.translate(player.x * cellSize, player.y * cellSize);
+        mapCtx.rotate(player.dir);
+        
+        mapCtx.fillStyle = "#ef4444";
+        mapCtx.beginPath();
+        mapCtx.moveTo(6, 0);
+        mapCtx.lineTo(-4, -4);
+        mapCtx.lineTo(-2, 0);
+        mapCtx.lineTo(-4, 4);
+        mapCtx.closePath();
+        mapCtx.fill();
+        mapCtx.restore();
+    }
+
+    function loop() {
+        update();
+        if (cameraView === 3) {
+            renderTopDownView();
+        } else {
+            render3D();
+        }
+        renderMinimap();
+        requestAnimationFrame(loop);
+    }
+
+    initGame();
+    loop();
+</script>
+</body>
+</html>
