@@ -361,14 +361,14 @@
     <div class="stick-area">
         <div id="leftStick" class="joystick-container">
             <div id="leftKnob" class="joystick-knob"></div>
-            <div class="stick-label">移動 (L)</div>
+            <div class="stick-label">移動 (L / WASD)</div>
         </div>
         <div class="map-controls">
             <button id="mapToggleBtn">🗺️ MAP</button>
         </div>
         <div id="rightStick" class="joystick-container">
             <div id="rightKnob" class="joystick-knob"></div>
-            <div class="stick-label">視点 (R)</div>
+            <div class="stick-label">視点 (R / 矢印)</div>
         </div>
     </div>
 
@@ -444,6 +444,31 @@
 
     let moveVec = { x: 0, y: 0 };
     let rotVec = { x: 0, y: 0 };
+
+    // キーボード入力の状態管理
+    let keysPressed = { w: false, a: false, s: false, d: false, ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false };
+
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "w" || e.key === "W") keysPressed.w = true;
+        if (e.key === "a" || e.key === "A") keysPressed.a = true;
+        if (e.key === "s" || e.key === "S") keysPressed.s = true;
+        if (e.key === "d" || e.key === "D") keysPressed.d = true;
+        if (e.key === "ArrowLeft") keysPressed.ArrowLeft = true;
+        if (e.key === "ArrowRight") keysPressed.ArrowRight = true;
+        if (e.key === "ArrowUp") keysPressed.ArrowUp = true;
+        if (e.key === "ArrowDown") keysPressed.ArrowDown = true;
+    });
+
+    window.addEventListener("keyup", (e) => {
+        if (e.key === "w" || e.key === "W") keysPressed.w = false;
+        if (e.key === "a" || e.key === "A") keysPressed.a = false;
+        if (e.key === "s" || e.key === "S") keysPressed.s = false;
+        if (e.key === "d" || e.key === "D") keysPressed.d = false;
+        if (e.key === "ArrowLeft") keysPressed.ArrowLeft = false;
+        if (e.key === "ArrowRight") keysPressed.ArrowRight = false;
+        if (e.key === "ArrowUp") keysPressed.ArrowUp = false;
+        if (e.key === "ArrowDown") keysPressed.ArrowDown = false;
+    });
 
     const diffConfigs = {
         easy:    { name: "Easy", start: 9,  step: 2 },
@@ -640,12 +665,10 @@
         let numVal = parseInt(rawVal) / 100;
         let keys = ['move', 'rotX', 'rotY'];
 
-        // 自身の値を更新
         sens[keys[changedIndex]] = numVal;
         inputs[changedIndex].valEl.textContent = rawVal;
         inputs[changedIndex].el.value = rawVal;
 
-        // AとCの直接リンク（bridge）がONの場合は、Bを巻き込まずにAとCだけを同期させる
         if (links['bridge']) {
             if (changedIndex === 0) {
                 sens[keys[2]] = numVal;
@@ -659,7 +682,6 @@
             return;
         }
 
-        // 通常の個別リンク判定
         if (changedIndex === 0 && links[0]) {
             sens[keys[1]] = numVal;
             inputs[1].valEl.textContent = rawVal;
@@ -836,17 +858,33 @@
             document.getElementById("timer").textContent = elapsedTime;
         }
 
-        player.dir += rotVec.x * 0.07 * sens.rotX;
-        player.pitch -= rotVec.y * 3.0 * sens.rotY;
+        // キーボード入力とジョイスティック入力を統合
+        let finalMoveX = moveVec.x;
+        let finalMoveY = moveVec.y;
+        let finalRotX = rotVec.x;
+        let finalRotY = rotVec.y;
+
+        if (keysPressed.a) finalMoveX = -1;
+        if (keysPressed.d) finalMoveX = 1;
+        if (keysPressed.w) finalMoveY = -1;
+        if (keysPressed.s) finalMoveY = 1;
+
+        if (keysPressed.ArrowLeft) finalRotX = -1;
+        if (keysPressed.ArrowRight) finalRotX = 1;
+        if (keysPressed.ArrowUp) finalRotY = -1;
+        if (keysPressed.ArrowDown) finalRotY = 1;
+
+        player.dir += finalRotX * 0.07 * sens.rotX;
+        player.pitch -= finalRotY * 3.0 * sens.rotY;
         player.pitch = Math.max(-120, Math.min(120, player.pitch));
 
-        if (moveVec.x !== 0 || moveVec.y !== 0) {
+        if (finalMoveX !== 0 || finalMoveY !== 0) {
             let speed = 0.045 * sens.move;
             let cos = Math.cos(player.dir);
             let sin = Math.sin(player.dir);
 
-            let dx = (-moveVec.y * cos - moveVec.x * sin) * speed;
-            let dy = (-moveVec.y * sin + moveVec.x * cos) * speed;
+            let dx = (-finalMoveY * cos - finalMoveX * sin) * speed;
+            let dy = (-finalMoveY * sin + finalMoveX * cos) * speed;
 
             let nextX = player.x + dx;
             let nextY = player.y + dy;
